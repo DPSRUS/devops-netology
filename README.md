@@ -1,40 +1,68 @@
 Домашнее задание 
-1.  Какого типа команда cd - встроенная команда оболочки BASH. Работает в текущей сессии использую переменное окружение пользователя.
-2.  Какая альтернатива без pipe команде grep <some_string> <some_file> | wc -l? 
-    Альтернатива - grep -c <some_string> <some_file>. 93 строка в man grep.
-3.  Процесс с PID 1 в VM - systemd
-    vagrant@vagrant:~$ ps -p 1
-    PID TTY          TIME CMD
-      1 ?        00:00:01 systemd
-4.  Как будет выглядеть команда, которая перенаправит вывод stderr ls на другую сессию терминала?
-    Запустил два терминала на VM для тестирования перенаправления.
-    vagrant@vagrant:~$ w - список кто в системе.
-    17:22:41 up 27 min,  2 users,  load average: 0.00, 0.00, 0.00
-    USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
-    vagrant  pts/0    10.0.2.2         16:55    0.00s  0.70s  0.01s w
-    vagrant  pts/1    10.0.2.2         17:21    1:19   0.00s  0.00s -bash
-    vagrant@vagrant:~$ ls /lost+found/ 2> /dev/pts/1 - перенаправил ошибки в терминал pts/1, каталог /lost+found/ без прав доступа пользователя vagrant, для моделирования ошибки доступа.
-5.  Получится ли одновременно передать команде файл на stdin и вывести ее stdout в другой файл? Приведите работающий пример.
-    Получится, пример:
-    vagrant@vagrant:~$ echo "123456" > test1
-    vagrant@vagrant:~$ cat test1
-    12346
-    vagrant@vagrant:~$ cat < test1 > test2 
-    vagrant@vagrant:~$ cat test2
-    123456
-6.  Получится ли находясь в графическом режиме, вывести данные из PTY в какой-либо из эмуляторов TTY? Сможете ли вы наблюдать выводимые данные?
-    Да, получиьтся передать данные в TTY, наблюдать выводимые данные возможно. Тестируем через графический интерфейс VirtualBox, выполним:
-    root@vagrant:# cat /home/vagrant/test1 > /dev/pts1
-    на эмулятора наблюдаем вывод результата выполнения команды:
-    vagrant@vagrant:~$ 123456
-7.  bash 5>&1 - создаст файловый дискриптор bash и перенаправит его в stdout. echo netology > /proc/$$/fd/5 - перенаправит стандартный поток вывода команды echo в  дискриптор 5 bash и покажет на TTY.
-8.  Перенаправить поток через pipe возможно, через промежуточный дискриптор 3, который будет ссылаться на stdout. 
-    vagrant@vagrant:~$ ls /root/ 3>&1 2>&3 3>- | grep den
-    ls: cannot open directory '/root/': Permission denied
-9.  cat /proc/$$/environ - покажет переменные окружения, доступные для процесса. Альтернативный способ - env.
-10. /proc/<PID>/cmdline - файл содержит информацию о командной строке запущеного процесса. man строка 178.
-    /proc/<PID>/exe - символическая ссылка на исполняемый файл. man строка 219.
-11. grep sse /proc/cpuinfo - sse4_2
-12. not a tty   Происходит из-за того, при запуске SSH подключения, после прохождения успешной аутентификации, не запускается псевдотерминал pts, запустить его можно используя ключ -t, который принудительно запустит оболочку.
-13. Установил screen и reptyr. Запустил wget https://releases.ubuntu.com/21.10/ubuntu-21.10-desktop-amd64.iso & в основном терминале SSH. Свернул задачу ctrl+z в jobs. Временно поменял переменную # echo 0 > /proc/sys/kernel/yama/ptrace_scope. Запустил screen, узнал PID wget с помощью pgrep, далее reptyr PID.
-14. echo string | sudo tee /root/new_file работает потому что, программа tee запускается с правами root (sudo), программа позволяет одновременно выводить на несколько источниов данные, в данном случае данные (stdout) полученные от выполнения echo и переданные через pipe на входе(stdin) tee записываются в файл и передаются на экран терминала.
+1.  vagrant@vagrant:~$ strace /bin/bash -c 'cd /tmp' 2> strace
+    cat strace | grep tmp
+    chdir("/tmp") - системный вызов chdir, fchdir - изменить рабочий каталог
+
+2.  file использует файлы:
+    openat(AT_FDCWD, "/etc/magic", O_RDONLY) = 3
+    openat(AT_FDCWD, "/usr/share/misc/magic.mgc", O_RDONLY) = 3
+
+3.  vagrant@vagrant:~$ ping 8.8.8.8 > ping_test_del &
+    vagrant@vagrant:~$ sudo ls -l /proc/1053/fd/
+        total 0
+        lrwx------ 1 root root 64 Dec 25 17:00 0 -> /dev/pts/1
+        l-wx------ 1 root root 64 Dec 25 17:00 1 -> /home/vagrant/ping_test_del
+        lrwx------ 1 root root 64 Dec 25 17:00 2 -> /dev/pts/1
+        lrwx------ 1 root root 64 Dec 25 17:00 3 -> 'socket:[27687]'
+        lrwx------ 1 root root 64 Dec 25 17:00 4 -> 'socket:[27688]'
+    vagrant@vagrant:~$ rm ping_test_del 
+    vagrant@vagrant:~$ sudo cat /proc/1053/fd/1 > /home/vagrant/recovery_ping
+    vagrant@vagrant:~$ cat recovery_ping 
+        PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+        64 bytes from 8.8.8.8: icmp_seq=1 ttl=63 time=7.72 ms
+        64 bytes from 8.8.8.8: icmp_seq=2 ttl=63 time=7.58 ms
+
+4.  зомби-процессы не занимают ресурсы (CPU,RAM,IO), но они использует слот в таблице процессов ядра, а при заполнении таблицы, будет невозможно создать новые процессы.
+5.  sudo apt-get install bpfcc-tools linux-headers-$(uname -r) - установил необходимый пакет.
+    root@vagrant:/usr/sbin# opensnoop-bpfcc - запустил 
+    PID    COMM               FD ERR PATH
+    784    vminfo              4   0 /var/run/utmp
+    579    dbus-daemon        -1   2 /usr/local/share/dbus-1/system-services
+    579    dbus-daemon        18   0 /usr/share/dbus-1/system-services
+    579    dbus-daemon        -1   2 /lib/dbus-1/system-services
+
+6.  uname -a - использует системный вызов uname().  
+    из man umame(2):
+        Part of the utsname information is also accessible via /proc/sys/kernel/{ostype, hostname, osrelease, version,domainname}
+
+7.  ; - разделитель команд. Команды отработают по очереди при любых результатах.
+    && - выполнит вторую каманду, если первая отработала без ошибок.
+    set -e прерывает выполнение команды, если команда завершается с ненулевым статусом. Использовать &&, если применить set -e смысла нет.
+
+8.  set -euxo pipefail состоит из опций:
+        -e прерывает выполнение команды, если команда завершается с ненулевым статусом.
+        -u прерывает выполнение команды если неустановленные или неопределенные переменные.
+        -x выводит аргументы команды во время выполнения.
+        -o устанавливает опцию - pipefail
+        опция pipefail - прекращает выполнение скрипта, даже если одна из частей пайпа завершилась ошибкой.
+
+9.  vagrant@vagrant:~$ ps -A -o stat | sort | uniq -c
+      8 I
+     40 I< - наиболее часто встречающийся.
+      1 R+
+     24 S  - наиболее часто встречающийся.
+      2 S+
+      1 S<s
+      1 SLsl
+      2 SN
+      1 STAT
+      1 Sl
+     14 Ss
+      1 Ss+
+      4 Ssl
+      Доп. символы к статутсу процесса: 
+      + - в группе процессов так называемого "переденего плана", которые выводят информацию в tty.
+      < - высокий приоритет у процесса.
+      s - лидер сеанса.
+      l - является многопоточным.
+
