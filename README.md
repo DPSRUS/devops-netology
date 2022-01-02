@@ -1,68 +1,84 @@
-Домашнее задание 
-1.  vagrant@vagrant:~$ strace /bin/bash -c 'cd /tmp' 2> strace
-    cat strace | grep tmp
-    chdir("/tmp") - системный вызов chdir, fchdir - изменить рабочий каталог
+Домашнее задание  
+1. Node_exporter:  
+   `wget https://github.com/prometheus/node_exporter/releases/download/v1.3.1/node_exporter-1.3.1.linux-amd64.tar.gz`  
+   `tar xvzf node_exporter-1.3.1.linux-amd64.tar.gz`  
+   `cp node_exporter /usr/local/`  
+   `sudo useradd -rs /bin/false node_exporter`  
+   `sudo nano /etc/systemd/system/node_exporter.service`  
+    
+        [Unit]
+        Description=Node Exporter
+        After=network-online.target
+        
+        [Service]
+        User=node_exporter
+        Group=node_exporter
+        Type=simple
+        ExecStart=/usr/local/bin/node_exporter $opts
+        EnvironmentFile=-/usr/local/bin/node_exporter_opts - указываем файл переменными для опций запуска.
+        
+        [Install]
+        WantedBy=multi-user.target  
+   `sudo nano /usr/local/bin/node_exporter_opts` - для теста отключаем сборщики по умолчанию. 
+   
+   		opts=--collector.disable-defaults   
+    
+   `sudo systemctl daemon-reload`  
+   `sudo systemctl start node_exporter`  
+   `sudo systemctl enable node_exporter` - добавляем в атозапуск.  
+   `sudo systemctl status node_exporter` - проверяем статус и доп. опцию запуска.
+   
+ 	   ● node_exporter.service - Node Exporter  
+  	   Loaded: loaded (/etc/systemd/system/node_exporter.service; disabled; vendor preset: enabled)  
+    	 Active: active (running) since Sun 2022-01-02 15:09:05 UTC; 2s ago  
+       Main PID: 2412 (node_exporter)  
+       Tasks: 4 (limit: 1071)  
+       Memory: 1.8M  
+       CGroup: /system.slice/node_exporter.service  
+               └─2412 /usr/local/bin/node_exporter --collector.disable-defaults - доп. опиция в файле.                 
+2. Базовые опции для мониторинга хоста по CPU, памяти, диску и сети - cpu, cpufreq, diskstats, filesystem, meminfo, netstat  
+3. Netdata  
+	`sudo apt install -y netdata`  
+  
+  	 Vagrant.configure("2") do |config|
+     	config.vm.box = "bento/ubuntu-20.04"
+ 		end
+		 Vagrant::Config.run do |config|
+	 	 config.vm.forward_port 9100, 8080 - проброс для Node_exporter
+ 		 config.vm.forward_port 19999, 19999 - проброс для Netdata
+		end
+	
+  Просмотрел и изучил метрики http://localhost:19999/#menu_system_submenu_cpu;theme=slate
+  
+5. `dmesg | grep -i "virt"` - Пробуем понять используется ли виртуализация.  
+		
+  	 	[    0.000000] DMI: innotek GmbH VirtualBox/VirtualBox, BIOS VirtualBox 12/01/2006  
+			[    0.003606] CPU MTRRs all blank - virtualized system.  
+			[    0.095715] Booting paravirtualized kernel on KVM  
+			[    2.637575] systemd[1]: Detected virtualization oracle.  
+5. `sudo sysctl -a | grep fs.nr_open`  - количество файловых дескрипторов для одного процесса, значение по умолчанию. 
 
-2.  file использует файлы:
-    openat(AT_FDCWD, "/etc/magic", O_RDONLY) = 3
-    openat(AT_FDCWD, "/usr/share/misc/magic.mgc", O_RDONLY) = 3
+		fs.nr_open = 1048576 
+   
+   `ulimit -n`  - "мягкие" ограничения, не позволят достичь лимита системы по умолчанию.  
+   
+ 	 	1024 
+6. `sudo -i`  
+	 `screen`  
+   `unshare -f -pid --mount-proc sleep 1h&`  
+   `nsenter --target 1861 --pid --mount`  
+   `ps aux`  
+		
+    	USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND  
+			root           1  0.0  0.0   9828   528 pts/1    S+   17:49   0:00 sleep 1h  - PID 1
+			root           2  0.2  0.3  11560  3948 pts/0    S    17:51   0:00 -bash  
+			root          11  0.0  0.3  13216  3260 pts/0    R+   17:51   0:00 ps aux  
+7.  :(){ :|:& };: - цитата:  "команда является логической бомбой. Она оперирует определением функции с именем ‘:‘, которая вызывает сама себя дважды: один раз на переднем плане и один раз в фоне. Она продолжает своё выполнение снова и снова, пока система не зависнет."  
+		`dmesg`  - смотрим логи.
+   
+		[ 5752.790410] cgroup: fork rejected by pids controller in /user.slice/user-1000.slice/session-13.scope - сработали ограничение на запуск процессов в сессии cgroups. 
+		    
+   `cat /sys/fs/cgroup/pids/user.slice/user-1000.slice/pids.max`  - узнаем значение по умолчанию, которое можно увеличить.
+		2356 
 
-3.  vagrant@vagrant:~$ ping 8.8.8.8 > ping_test_del &
-    vagrant@vagrant:~$ sudo ls -l /proc/1053/fd/
-        total 0
-        lrwx------ 1 root root 64 Dec 25 17:00 0 -> /dev/pts/1
-        l-wx------ 1 root root 64 Dec 25 17:00 1 -> /home/vagrant/ping_test_del
-        lrwx------ 1 root root 64 Dec 25 17:00 2 -> /dev/pts/1
-        lrwx------ 1 root root 64 Dec 25 17:00 3 -> 'socket:[27687]'
-        lrwx------ 1 root root 64 Dec 25 17:00 4 -> 'socket:[27688]'
-    vagrant@vagrant:~$ rm ping_test_del 
-    vagrant@vagrant:~$ sudo cat /proc/1053/fd/1 > /home/vagrant/recovery_ping
-    vagrant@vagrant:~$ cat recovery_ping 
-        PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
-        64 bytes from 8.8.8.8: icmp_seq=1 ttl=63 time=7.72 ms
-        64 bytes from 8.8.8.8: icmp_seq=2 ttl=63 time=7.58 ms
-
-4.  зомби-процессы не занимают ресурсы (CPU,RAM,IO), но они использует слот в таблице процессов ядра, а при заполнении таблицы, будет невозможно создать новые процессы.
-5.  sudo apt-get install bpfcc-tools linux-headers-$(uname -r) - установил необходимый пакет.
-    root@vagrant:/usr/sbin# opensnoop-bpfcc - запустил 
-    PID    COMM               FD ERR PATH
-    784    vminfo              4   0 /var/run/utmp
-    579    dbus-daemon        -1   2 /usr/local/share/dbus-1/system-services
-    579    dbus-daemon        18   0 /usr/share/dbus-1/system-services
-    579    dbus-daemon        -1   2 /lib/dbus-1/system-services
-
-6.  uname -a - использует системный вызов uname().  
-    из man umame(2):
-        Part of the utsname information is also accessible via /proc/sys/kernel/{ostype, hostname, osrelease, version,domainname}
-
-7.  ; - разделитель команд. Команды отработают по очереди при любых результатах.
-    && - выполнит вторую каманду, если первая отработала без ошибок.
-    set -e прерывает выполнение команды, если команда завершается с ненулевым статусом. Использовать &&, если применить set -e смысла нет.
-
-8.  set -euxo pipefail состоит из опций:
-        -e прерывает выполнение команды, если команда завершается с ненулевым статусом.
-        -u прерывает выполнение команды если неустановленные или неопределенные переменные.
-        -x выводит аргументы команды во время выполнения.
-        -o устанавливает опцию - pipefail
-        опция pipefail - прекращает выполнение скрипта, даже если одна из частей пайпа завершилась ошибкой.
-
-9.  vagrant@vagrant:~$ ps -A -o stat | sort | uniq -c
-      8 I
-     40 I< - наиболее часто встречающийся.
-      1 R+
-     24 S  - наиболее часто встречающийся.
-      2 S+
-      1 S<s
-      1 SLsl
-      2 SN
-      1 STAT
-      1 Sl
-     14 Ss
-      1 Ss+
-      4 Ssl
-      Доп. символы к статутсу процесса: 
-      + - в группе процессов так называемого "переденего плана", которые выводят информацию в tty.
-      < - высокий приоритет у процесса.
-      s - лидер сеанса.
-      l - является многопоточным.
-
+    
