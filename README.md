@@ -79,6 +79,5 @@
 		[ 5752.790410] cgroup: fork rejected by pids controller in /user.slice/user-1000.slice/session-13.scope - сработали ограничение на запуск процессов в сессии cgroups. 
 		    
    `cat /sys/fs/cgroup/pids/user.slice/user-1000.slice/pids.max`  - узнаем значение по умолчанию, которое можно увеличить.  
-		2356 
-
-    
+	
+	2356 
