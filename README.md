@@ -86,10 +86,39 @@ dps@Dps:~20:58:29 j1 $ ./test.py ./git_py/
 
 ### Ваш скрипт:
 ```python
-???
+#!/usr/bin/env python3
+
+from socket import gethostbyname
+
+srv = {'drive.google.com': '0.0.0.0', 'mail.google.com': '0.0.0.0', 'google.com': '0.0.0.0'}
+i = 50
+init = 0
+
+while 1==1:
+   for host in srv:
+     ip = gethostbyname(host)
+     print (host + " : " + ip)
+     if ip != srv[host]:
+      if i == 1 and init != 1:
+      print(str(' [ERROR] ' + str(host) + ' IP mistmatch: ' + srv[host] + ' ' + ip))
+     srv[host] = ip
 ```
 
 ### Вывод скрипта при запуске при тестировании:
 ```
-???
+google.com : 173.194.221.100
+drive.google.com : 142.251.1.194
+mail.google.com : 216.58.212.165
+
+[ERROR] drive.google.com IP mistmatch: 0.0.0.0 173.194.73.194
+[ERROR] mail.google.com IP mistmatch: 0.0.0.0 64.233.165.83
+[ERROR] google.com IP mistmatch: 0.0.0.0 173.194.221.139
+[ERROR] mail.google.com IP mistmatch: 64.233.165.83 64.233.165.19
+[ERROR] mail.google.com IP mistmatch: 64.233.165.19 64.233.165.83
+[ERROR] google.com IP mistmatch: 173.194.221.139 173.194.222.101
+[ERROR] google.com IP mistmatch: 173.194.222.101 173.194.222.100
+[ERROR] google.com IP mistmatch: 173.194.222.100 64.233.164.139
+[ERROR] google.com IP mistmatch: 64.233.164.139 64.233.164.138
+[ERROR] drive.google.com IP mistmatch: 173.194.73.194 108.177.14.194
+[ERROR] drive.google.com IP mistmatch: 108.177.14.194 173.194.73.194
 ```
